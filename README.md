@@ -3,6 +3,7 @@
 ## Roadmap
 
 - [X] Split meshes to make the number of meshes identical
+  - TODO: recompute midpoint vertexNormal, faceVertexUvs, vettexColor if any...
 - [ ] Find the corresponding mesh pairs
 - [ ] linear interpolation for meshes
 
