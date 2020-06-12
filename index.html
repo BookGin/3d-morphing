@@ -56,7 +56,7 @@ let cubeWire = new LineSegments(
   new WireframeGeometry(cube.geometry),
   new LineBasicMaterial({
     color: 0xff0000,
-    linewidth: 3,
+    linewidth: 10,
   })
 );
 cubeGroup.add(cubeWire);
@@ -69,16 +69,49 @@ let oct = new Mesh(
   new MeshPhongMaterial({color: 0x008080, emissive: 0x004040})
 );
 octGroup.add(oct);
+
+let geo = oct.geometry.clone();
+let getLongestLineVertexIndexPair = (vs, face) => {
+  let max = (la, lb) => (vs[la[0]].distanceTo(vs[la[1]]) > vs[lb[0]].distanceTo(vs[lb[1]])) ? la : lb;
+  return max(max([face.a, face.b], [face.b, face.c]), [face.a, face.c]);
+};
+
+let replaceFaceIndex = (face, oldIndex, newIndex) => {
+  for (let i of 'abc')
+    if (face[i] === oldIndex)
+      return face[i] = newIndex;
+};
+
+let splitFace = (geo, face) => {
+  let vs = geo.vertices;
+  let [i, j] = getLongestLineVertexIndexPair(vs, face);
+  let midpoint = vs[i].clone().add(vs[j]).divideScalar(2);
+  vs.push(midpoint);
+  let m = vs.length - 1;
+  let newFace = face.clone();
+  geo.faces.push(newFace);
+  replaceFaceIndex(face, i, m);
+  replaceFaceIndex(newFace, j, m);
+};
+
+let idx = 0;
+while (geo.faces.length < cube.geometry.faces.length) {
+  splitFace(geo, geo.faces[idx]);
+  idx++;
+}
+
 let octWire = new LineSegments(
-  new WireframeGeometry(oct.geometry),
+  new WireframeGeometry(geo),
   new LineBasicMaterial({
     color: 0xff0000,
-    linewidth: 3,
+    linewidth: 10,
   })
 );
 octGroup.add(octWire);
 octGroup.position.x = +1.5;
 scene.add(octGroup);
+
+
 
 
 let stats = new Stats();
