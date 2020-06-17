@@ -5,6 +5,10 @@
 - [X] Split meshes to make the number of meshes identical
 - [X] Split vertices to create independent faces
 - [ ] Find the best corresponding mesh pairs
+  - Approach A: nearest-neighbor
+  - Approach B: [edge ordering](http://web.mit.edu/manoli/morph/www/morph.html#algo)
+  - Approach C: parameterization, [See III.4.2.](https://tel.archives-ouvertes.fr/tel-00836048/file/ThA_se_MocanuBogdan.pdf).
+
 - [X] linear interpolation for meshes
 
 ## Reference
