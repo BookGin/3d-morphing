@@ -12,6 +12,7 @@
   - [X] Future work: Approach C: parameterization, [See III.4.2.](https://tel.archives-ouvertes.fr/tel-00836048/file/ThA_se_MocanuBogdan.pdf).
 - [X] linear interpolation for meshes
 - [ ] User interaction interface, [See upper-right control window](https://threejs.org/docs/scenes/geometry-browser.html#BoxGeometry)
+      By [data.gui](http://workshop.chromeexperiments.com/examples/gui/#1--Basic-Usage)
 
 ## Reference
 
