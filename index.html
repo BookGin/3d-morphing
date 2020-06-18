@@ -13,9 +13,13 @@
     </style>
   </head>
   <body>
-    <canvas id="canvas"></canvas>
+
+      <canvas id="canvas"></canvas>
+
   </body>
-  <script type="module">
+  <script type="text/javascript" src="./js/dat.gui.js"></script>
+
+    <script type="module">
 import Stats from "./js/stats.module.js?v=0.17.0";
 import { OrbitControls } from "./js/OrbitControls.js";
 import {
@@ -32,9 +36,13 @@ import {
   DoubleSide,
 } from "./js/three.module.js?v=117";
 
+
+
 let stats = new Stats();
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
 document.body.appendChild(stats.dom);
+
+
 
 // https://threejs.org/docs/index.html#manual/en/introduction/Creating-a-scene
 let scene = new Scene();
@@ -51,6 +59,7 @@ let orbit = new OrbitControls(camera, renderer.domElement);
 let light = new PointLight(0xffffff, 1.5, 0);
 light.position.set(0, 1, 1);
 scene.add(light);
+
 
 
 // Util
@@ -138,6 +147,8 @@ let cubeWire = new LineSegments(
 cubeGroup.add(cubeWire);
 cubeGroup.position.x = -1.5;
 scene.add(cubeGroup);
+
+
 
 // Oct
 let octGroup = new Group();
@@ -229,4 +240,5 @@ window.onresize = () => {
 	camera.updateProjectionMatrix();
 };
   </script>
+
 </html>
