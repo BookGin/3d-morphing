@@ -32,6 +32,10 @@ import {
   DoubleSide,
 } from "./js/three.module.js?v=117";
 
+let stats = new Stats();
+stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild(stats.dom);
+
 // https://threejs.org/docs/index.html#manual/en/introduction/Creating-a-scene
 let scene = new Scene();
 let camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -47,6 +51,7 @@ let orbit = new OrbitControls(camera, renderer.domElement);
 let light = new PointLight(0xffffff, 1.5, 0);
 light.position.set(0, 1, 1);
 scene.add(light);
+
 
 // Util
 let getLongestLineVertexIndexPair = (vs, face) => {
@@ -82,8 +87,8 @@ let splitIndependentVertices = (geo) => {
   geo.vertices = newVs;
 };
 
-let computeShortestFaceDistance = (srcGeo, srcFace, dstGeo, dstFace) => {
-  let computeFaceDistance = (vs0, f0, vs1, f1) => (
+let computeFaceDistance = (srcGeo, srcFace, dstGeo, dstFace) => {
+  let _computeFaceDistance = (vs0, f0, vs1, f1) => (
     Math.pow(vs0[f0.a].distanceTo(vs1[f1.a]), 2) +
     Math.pow(vs0[f0.b].distanceTo(vs1[f1.b]), 2) +
     Math.pow(vs0[f0.c].distanceTo(vs1[f1.c]), 2)
@@ -98,11 +103,22 @@ let computeShortestFaceDistance = (srcGeo, srcFace, dstGeo, dstFace) => {
   let [minDistance, minPseudoFace] = [undefined, undefined];
   for (let [a, b, c] of permus) {
     let pseudoFace = {a, b, c};
-    let distance = computeFaceDistance(srcGeo.vertices, pseudoFace, dstGeo.vertices, dstFace);
+    let distance = _computeFaceDistance(srcGeo.vertices, pseudoFace, dstGeo.vertices, dstFace);
     if (minPseudoFace === undefined || distance < minDistance)
        [minDistance, minPseudoFace] = [distance, pseudoFace];
   }
   return [minDistance, minPseudoFace];
+};
+
+let getShortestDistanceFaceIndex = (srcGeo, srcFace, dstGeo, dstFaces) => {
+  let [minIndex, minDistance, minPseudoFace] = [undefined, undefined, undefined];
+  for (let i = 0; i < dstFaces.length; i++) {
+    let dstFace = dstFaces[i];
+    let [distance, pseudoFace] = computeFaceDistance(srcGeo, srcFace, dstGeo, dstFace);
+    if (minDistance === undefined || distance < minDistance)
+      [minIndex, minDistance, minPseudoFace] = [i, distance, pseudoFace];
+  }
+  return [minIndex, minPseudoFace];
 };
 
 // Cube
@@ -154,35 +170,53 @@ octWire.geometry = new WireframeGeometry(oct.geometry);
 splitIndependentVertices(geo);
 splitIndependentVertices(cube.geometry);
 
-let stats = new Stats();
-stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
-document.body.appendChild(stats.dom);
+// Determine morphing mesh pairs
+let pairs = [];
+let dstFaces = new Set(oct.geometry.faces);
+for (let srcFace of cube.geometry.faces) {
+  let tmpFaces = Array.from(dstFaces);
+  let [index, pseudoSrcFace] = getShortestDistanceFaceIndex(cube.geometry, srcFace, oct.geometry, tmpFaces);
+  let dstFace = tmpFaces[index];
+  dstFaces.delete(dstFace);
+  pairs.push([pseudoSrcFace, dstFace]);
+}
 
 let cubeOriGeo = cube.geometry.clone();
 let clk = 0;
-let mx = 200;
+let mx = 150;
+let p = 0;
 function animate() {
-  stats.begin()
-  cubeGroup.rotation.y += 0.01;
-  octGroup.rotation.y += 0.01;
-  if (clk < mx) {
-    for (let i = 0; i < cubeOriGeo.vertices.length; i++) {
-      let p = cubeOriGeo.vertices[i].clone().multiplyScalar(1-(clk+1)/mx).add(
-        oct.geometry.vertices[i].clone().multiplyScalar((clk+1)/mx)
+  //cubeGroup.rotation.y += 0.01;
+  //octGroup.rotation.y += 0.01;
+  if (p < pairs.length) {
+    let [pseudoSrcFace, dstFace] = pairs[p];
+    for (let i of 'abc') {
+      let [srcIdx, dstIdx] = [pseudoSrcFace[i], dstFace[i]];
+      let p = cubeOriGeo.vertices[srcIdx].clone().multiplyScalar(1-(clk+1)/mx).add(
+        oct.geometry.vertices[dstIdx].clone().multiplyScalar((clk+1)/mx)
       );
-      cube.geometry.vertices[i].copy(p);
+      p.x += ((clk+1) / mx) * (octGroup.position.x - cubeGroup.position.x);
+      cube.geometry.vertices[srcIdx].copy(p);
       cube.geometry.verticesNeedUpdate = true;
       cube.geometry.computeVertexNormals();
       cubeWire.geometry = new WireframeGeometry(cube.geometry);
     }
-    cubeGroup.position.x += (octGroup.position.x - cubeGroup.position.x) / (mx-clk);
+  }
+  clk++;
+  if (clk == mx) {
+    clk = 0;
+    p++;
   }
   renderer.render(scene, camera);
-  stats.end()
-	requestAnimationFrame(animate);
-  clk++;
 }
-animate();
+
+function loop() {
+  stats.begin()
+  animate();
+	requestAnimationFrame(loop);
+  stats.end()
+}
+loop();
 
 window.onresize = () => {
   let w = window.innerWidth;
