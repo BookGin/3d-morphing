@@ -82,6 +82,29 @@ let splitIndependentVertices = (geo) => {
   geo.vertices = newVs;
 };
 
+let computeShortestFaceDistance = (srcGeo, srcFace, dstGeo, dstFace) => {
+  let computeFaceDistance = (vs0, f0, vs1, f1) => (
+    Math.pow(vs0[f0.a].distanceTo(vs1[f1.a]), 2) +
+    Math.pow(vs0[f0.b].distanceTo(vs1[f1.b]), 2) +
+    Math.pow(vs0[f0.c].distanceTo(vs1[f1.c]), 2)
+  );
+
+  let f = srcFace;
+  let permus = [
+    [f.a, f.b, f.c], [f.a, f.c, f.b],
+    [f.b, f.a, f.c], [f.b, f.c, f.a],
+    [f.c, f.a, f.b], [f.c, f.b, f.a],
+  ];
+  let [minDistance, minPseudoFace] = [undefined, undefined];
+  for (let [a, b, c] of permus) {
+    let pseudoFace = {a, b, c};
+    let distance = computeFaceDistance(srcGeo.vertices, pseudoFace, dstGeo.vertices, dstFace);
+    if (minPseudoFace === undefined || distance < minDistance)
+       [minDistance, minPseudoFace] = [distance, pseudoFace];
+  }
+  return [minDistance, minPseudoFace];
+};
+
 // Cube
 let cubeGroup = new Group();
 let cube = new Mesh(
