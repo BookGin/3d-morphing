@@ -31,6 +31,7 @@ import {
   Geometry,
   DoubleSide,
 } from "./js/three.module.js?v=117";
+import { GLTFLoader } from './js/GLTFLoader.js';
 
 let stats = new Stats();
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
@@ -181,6 +182,37 @@ for (let srcFace of cube.geometry.faces) {
   pairs.push([pseudoSrcFace, dstFace]);
 }
 
+let getMaxVerticeDistance = (geo) => {
+  let getDistanceSquare = (v) => (Math.pow(v.x, 2) + Math.pow(v.y, 2) + Math.pow(v.z, 2));
+  let [maxDistanceSquare, maxIndex] = [0, 0];
+  for (let i = 0; i < geo.vertices.length; i++) {
+    let d = getDistanceSquare(geo.vertices[i]);
+    if (d > maxDistanceSquare)
+      [maxDistanceSquare, maxIndex] = [d, i];
+  }
+  return Math.sqrt(maxDistanceSquare);
+};
+
+let loader = new GLTFLoader();
+let objGroup = new Group();
+loader.load('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Binary/Duck.glb', (gltf) => {
+  let obj = gltf.scene.children[0].children[1];
+  objGroup.add(obj);
+  let objGeo = new Geometry().fromBufferGeometry(obj.geometry);
+  let wire = new LineSegments(
+    new WireframeGeometry(objGeo),
+    new LineBasicMaterial({
+      color: 0xff0000,
+      linewidth: 1,
+    })
+  );
+  objGroup.add(wire);
+  // Fix scale
+  let maxDistance = getMaxVerticeDistance(objGeo);
+  objGroup.scale.x = objGroup.scale.y = objGroup.scale.z = 1 / maxDistance;
+  scene.add(objGroup);
+}, undefined, console.error);
+
 let cubeOriGeo = cube.geometry.clone();
 let clk = 0;
 let mx = 150;
@@ -188,6 +220,7 @@ let p = 0;
 function animate() {
   //cubeGroup.rotation.y += 0.01;
   //octGroup.rotation.y += 0.01;
+  objGroup.rotation.y += 0.02;
   if (p < pairs.length) {
     let [pseudoSrcFace, dstFace] = pairs[p];
     for (let i of 'abc') {
