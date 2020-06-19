@@ -130,12 +130,54 @@ let getShortestDistanceFaceIndex = (srcGeo, srcFace, dstGeo, dstFaces) => {
   return [minIndex, minPseudoFace];
 };
 
+
 // Cube
 let cubeGroup = new Group();
+
+var geometry = new BoxGeometry( 1, 1, 1 );
+var material = new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
 let cube = new Mesh(
-  new BoxGeometry(),
-  new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
+  geometry,
+  material
 );
+
+var options = {
+  velx: 0,
+  vely: 0,
+  camera: {
+    speed: 0.0001
+  },
+  stop: function() {
+    this.velx = 0;
+    this.vely = 0;
+  },
+  reset: function() {
+    this.velx = 0.1;
+    this.vely = 0.1;
+    camera.position.z = 75;
+    camera.position.x = 0;
+    camera.position.y = 0;
+    cube.scale.x = 1;
+    cube.scale.y = 1;
+    cube.scale.z = 1;
+    cube.material.wireframe = true;
+  }
+};
+
+
+var gui = new dat.GUI();
+
+var box = gui.addFolder('Cube');
+box.add(cube.scale, 'x', 0, 3).name('Width').listen();
+box.add(cube.scale, 'y', 0, 3).name('Height').listen();
+box.add(cube.scale, 'z', 0, 3).name('Length').listen();
+box.add(cube.material, 'wireframe').listen();
+box.open();
+
+gui.add(options, 'stop');
+gui.add(options, 'reset');
+
+
 cubeGroup.add(cube);
 let cubeWire = new LineSegments(
   new WireframeGeometry(cube.geometry),
@@ -148,14 +190,14 @@ cubeGroup.add(cubeWire);
 cubeGroup.position.x = -1.5;
 scene.add(cubeGroup);
 
-
-
 // Oct
 let octGroup = new Group();
 let oct = new Mesh(
   new OctahedronGeometry(),
   new MeshPhongMaterial({color: 0x008080, emissive: 0x004040, transparent: true, opacity: 0.5})
 );
+
+
 octGroup.add(oct);
 let octWire = new LineSegments(
   new WireframeGeometry(oct.geometry),
@@ -239,6 +281,8 @@ window.onresize = () => {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 };
+
+
   </script>
 
 </html>
