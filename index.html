@@ -177,6 +177,7 @@ scene.add(octGroup);
 
 
 var options = {
+  approach: 'A',
   velx: 0,
   vely: 0,
   camera: {
@@ -207,7 +208,6 @@ var box = gui.addFolder('Cube');
 box.add(cubeGroup.scale, 'x', 0, 3).name('Width').listen();
 box.add(cubeGroup.scale, 'y', 0, 3).name('Height').listen();
 box.add(cubeGroup.scale, 'z', 0, 3).name('Length').listen();
-box.add(cube.material, 'wireframe').listen();
 box.open();
 
 gui.add(options, 'stop');
@@ -270,13 +270,20 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+
 function loop() {
   stats.begin()
-  animate();
+  if (options.approach == 'Nearest neighbor'){
+    animate();
+  };
 	requestAnimationFrame(loop);
   stats.end()
 }
 loop();
+
+
+gui.add(options, 'approach', ['Nearest neighbor', 'Edge ordering', 'Parameterization']);
+
 
 window.onresize = () => {
   let w = window.innerWidth;
