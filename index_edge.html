@@ -238,36 +238,30 @@ splitIndependentVertices(cube.geometry);
 // Determine morphing mesh pairs
 // Get all pairs
 let DistanceOfAllPairs = [];
-let dstFaces = Array.from(new Set(oct.geometry.faces));
-let srcFaces = Array.from(new Set(cube.geometry.faces));
+let srcFaces = cube.geometry.faces;
+let dstFaces = oct.geometry.faces;
 
-console.log(srcFaces.length)
-for (let i = 0; i < srcFaces.length; i++){
-  for (let j = 0; j < dstFaces.length; j++){
-    let srcFace = srcFaces[i];
-    let dstFace = dstFaces[j];
-    let distance = computeFaceDistance(cube.geometry, srcFace, oct.geometry, dstFace)
-    DistanceOfAllPairs.push([distance, i, j]);
-}
+for (let i = 0; i < srcFaces.length; i++) {
+  for (let j = 0; j < dstFaces.length; j++) {
+    let srcFace = srcFaces[i], dstFace = dstFaces[j];
+    let [distance, pseudoSrcFace] = computeFaceDistance(cube.geometry, srcFace, oct.geometry, dstFace)
+    DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
+  }
 }
 //sort distance
-DistanceOfAllPairs.sort()
+DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
 
 
 let pairs = [];
-let usedRecordSrc = [];
-let usedRecordDst = [];
+let usedRecordSrcIndex = new Set();
+let usedRecordDstIndex = new Set();
 for (let k = 0; k < DistanceOfAllPairs.length; k++){
-  let currentShortestPair = DistanceOfAllPairs[k];
-  let id_i = currentShortestPair[1];
-  let id_j = currentShortestPair[2];
-  let n = usedRecordSrc.includes(id_i);
-  let m = usedRecordDst.includes(id_j);
-  if (n == false && m == false){
-    pairs.push([srcFaces[id_i], dstFaces[id_j]]);
-    usedRecordSrc.push(id_i);
-    usedRecordDst.push(id_j);
-  }
+  let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
+  if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
+    continue;
+  pairs.push([pseudoSrcFace, dstFaces[j]]);
+  usedRecordSrcIndex.add(i);
+  usedRecordDstIndex.add(j);
 }
 
 
