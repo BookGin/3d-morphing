@@ -13,13 +13,10 @@
     </style>
   </head>
   <body>
-
-      <canvas id="canvas"></canvas>
-
+    <canvas id="canvas"></canvas>
   </body>
   <script type="text/javascript" src="./js/dat.gui.js"></script>
-
-    <script type="module">
+  <script type="module">
 import Stats from "./js/stats.module.js?v=0.17.0";
 import { OrbitControls } from "./js/OrbitControls.js";
 import {
@@ -27,23 +24,19 @@ import {
   PerspectiveCamera,
   WebGLRenderer,
   PointLight,
-  BoxGeometry, OctahedronGeometry, WireframeGeometry,
+  BoxGeometry, OctahedronGeometry, TorusGeometry, WireframeGeometry,
   MeshPhongMaterial,
   Mesh,
   LineBasicMaterial, LineSegments,
   Group,
   Geometry,
-  DoubleSide,
+  DoubleSide
 } from "./js/three.module.js?v=117";
 import { GLTFLoader } from './js/GLTFLoader.js';
-
-
 
 let stats = new Stats();
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
 document.body.appendChild(stats.dom);
-
-
 
 // https://threejs.org/docs/index.html#manual/en/introduction/Creating-a-scene
 let scene = new Scene();
@@ -55,12 +48,24 @@ let renderer = new WebGLRenderer({
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
 
+window.onresize = () => {
+  let w = window.innerWidth;
+  let h = window.innerHeight;
+	let canvas = renderer.domElement;
+	canvas.width = w;
+	canvas.height = h;
+	renderer.setSize(w, h);
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+};
+
 let orbit = new OrbitControls(camera, renderer.domElement);
+
+let loader = new GLTFLoader();
 
 let light = new PointLight(0xffffff, 1.5, 0);
 light.position.set(0, 1, 1);
 scene.add(light);
-
 
 
 // Util
@@ -131,52 +136,27 @@ let getShortestDistanceFaceIndex = (srcGeo, srcFace, dstGeo, dstFaces) => {
   return [minIndex, minPseudoFace];
 };
 
+let getMaxVerticeDistance = (geo) => {
+  let getDistanceSquare = (v) => (Math.pow(v.x, 2) + Math.pow(v.y, 2) + Math.pow(v.z, 2));
+  let [maxDistanceSquare, maxIndex] = [0, 0];
+  for (let i = 0; i < geo.vertices.length; i++) {
+    let d = getDistanceSquare(geo.vertices[i]);
+    if (d > maxDistanceSquare)
+      [maxDistanceSquare, maxIndex] = [d, i];
+  }
+  return Math.sqrt(maxDistanceSquare);
+};
 
-// Cube
-let cubeGroup = new Group();
+let normalizeScale = (obj) => {
+  let s = 1 / getMaxVerticeDistance(obj.geometry);
+  obj.scale.set(s, s, s);
+  obj.updateMatrix();
+  obj.geometry.applyMatrix(obj.matrix);
+  obj.matrix.identity();
+  obj.scale.set( 1, 1, 1 );
+};
 
-var geometry = new BoxGeometry( 1, 1, 1 );
-var material = new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
-let cube = new Mesh(
-  geometry,
-  material
-);
-
-
-cubeGroup.add(cube);
-let cubeWire = new LineSegments(
-  new WireframeGeometry(cube.geometry),
-  new LineBasicMaterial({
-    color: 0xff0000,
-    linewidth: 10,
-  })
-);
-cubeGroup.add(cubeWire);
-cubeGroup.position.x = -1.5;
-scene.add(cubeGroup);
-
-
-// Oct
-let octGroup = new Group();
-let oct = new Mesh(
-  new OctahedronGeometry(),
-  new MeshPhongMaterial({color: 0x008080, emissive: 0x004040, transparent: true, opacity: 0.5})
-);
-
-
-octGroup.add(oct);
-let octWire = new LineSegments(
-  new WireframeGeometry(oct.geometry),
-  new LineBasicMaterial({
-    color: 0xff00ff,
-    linewidth: 10,
-  })
-);
-octGroup.add(octWire);
-octGroup.position.x = +1.5;
-scene.add(octGroup);
-
-
+var gui = new dat.GUI();
 var options = {
   velx: 0,
   vely: 0,
@@ -200,126 +180,102 @@ var options = {
 
   }
 };
-
-
-var gui = new dat.GUI();
-
-var box = gui.addFolder('Cube');
-box.add(cubeGroup.scale, 'x', 0, 3).name('Width').listen();
-box.add(cubeGroup.scale, 'y', 0, 3).name('Height').listen();
-box.add(cubeGroup.scale, 'z', 0, 3).name('Length').listen();
-box.open();
-
 gui.add(options, 'stop');
 gui.add(options, 'reset');
 
 
-
-
-
-// Split oct faces
-let geo = oct.geometry;
-let idx = 0;
-while (geo.faces.length < cube.geometry.faces.length) {
-  splitFace(geo, geo.faces[idx]);
-  idx++;
-}
-octWire.geometry = new WireframeGeometry(oct.geometry);
-
-// Split vertices
-splitIndependentVertices(geo);
-splitIndependentVertices(cube.geometry);
-
-// Determine morphing mesh pairs
-// Get all pairs
-let DistanceOfAllPairs = [];
-let srcFaces = cube.geometry.faces;
-let dstFaces = oct.geometry.faces;
-
-for (let i = 0; i < srcFaces.length; i++) {
-  for (let j = 0; j < dstFaces.length; j++) {
-    let srcFace = srcFaces[i], dstFace = dstFaces[j];
-    let [distance, pseudoSrcFace] = computeFaceDistance(cube.geometry, srcFace, oct.geometry, dstFace)
-    DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
-  }
-}
-//sort distance
-DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
-
-
 let pairs = [];
-let usedRecordSrcIndex = new Set();
-let usedRecordDstIndex = new Set();
-for (let k = 0; k < DistanceOfAllPairs.length; k++){
-  let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
-  if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
-    continue;
-  pairs.push([pseudoSrcFace, dstFaces[j]]);
-  usedRecordSrcIndex.add(i);
-  usedRecordDstIndex.add(j);
-}
+let src = undefined;
+let dst = undefined;
 
-let getMaxVerticeDistance = (geo) => {
-  let getDistanceSquare = (v) => (Math.pow(v.x, 2) + Math.pow(v.y, 2) + Math.pow(v.z, 2));
-  let [maxDistanceSquare, maxIndex] = [0, 0];
-  for (let i = 0; i < geo.vertices.length; i++) {
-    let d = getDistanceSquare(geo.vertices[i]);
-    if (d > maxDistanceSquare)
-      [maxDistanceSquare, maxIndex] = [d, i];
-  }
-  return Math.sqrt(maxDistanceSquare);
-};
-
-let loader = new GLTFLoader();
-let objGroup = new Group();
-loader.load('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Binary/Duck.glb', (gltf) => {
-  let obj = gltf.scene.children[0].children[1];
-  objGroup.add(obj);
-  let objGeo = new Geometry().fromBufferGeometry(obj.geometry);
-  let wire = new LineSegments(
-    new WireframeGeometry(objGeo),
-    new LineBasicMaterial({
-      color: 0xff0000,
-      linewidth: 1,
-    })
+!async function() {
+  //let duckModel = await loader.loadAsync('model/duck.glb');
+  //let duck = duckModel.scene.children[0].children[1];
+  //duck.geometry = new Geometry().fromBufferGeometry(duck.geometry);
+  //duck.geometry.faces = duck.geometry.faces.slice(2000, 4000);
+  //duck.material = new MeshPhongMaterial({color: 0x808000, emissive: 0x404000});
+  //normalizeScale(duck);
+  let torus = new Mesh(
+    new TorusGeometry(1, .3, .16, 10),
+    new MeshPhongMaterial({color: 0x808000, emissive: 0x404000})
   );
-  objGroup.add(wire);
-  // Fix scale
-  let maxDistance = getMaxVerticeDistance(objGeo);
-  objGroup.scale.x = objGroup.scale.y = objGroup.scale.z = 1 / maxDistance;
-  scene.add(objGroup);
-}, undefined, console.error);
 
-let cubeOriGeo = cube.geometry.clone();
+  let cube = new Mesh(
+     new BoxGeometry(1, 1, 1),
+     new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
+  );
+  scene.add(cube);
+
+  src = cube;
+  dst = torus;
+
+  // Split faces
+  let idx = 0;
+  while (src.geometry.faces.length < dst.geometry.faces.length) {
+    splitFace(src.geometry, src.geometry.faces[idx]);
+    idx++;
+  }
+  // Split independent vertices
+  splitIndependentVertices(src.geometry);
+  splitIndependentVertices(dst.geometry);
+  
+  console.log('edge ordering');
+  // edge ordering
+  let DistanceOfAllPairs = [];
+  let srcFaces = src.geometry.faces, dstFaces = dst.geometry.faces;
+  for (let i = 0; i < srcFaces.length; i++) {
+    for (let j = 0; j < dstFaces.length; j++) {
+      let srcFace = srcFaces[i], dstFace = dstFaces[j];
+      let [distance, pseudoSrcFace] = computeFaceDistance(src.geometry, srcFace, dst.geometry, dstFace)
+      DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
+    }
+  }
+  DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
+
+  let usedRecordSrcIndex = new Set(), usedRecordDstIndex = new Set();
+  for (let k = 0; k < DistanceOfAllPairs.length; k++){
+    let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
+    if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
+      continue;
+    pairs.push([pseudoSrcFace, dstFaces[j]]);
+    usedRecordSrcIndex.add(i);
+    usedRecordDstIndex.add(j);
+  }
+  console.log('edge ordering done',  pairs.length);
+}();
+
+var box = gui.addFolder('Object');
+box.add(src.scale, 'x', 0, 3).name('Width').listen();
+box.add(src.scale, 'y', 0, 3).name('Height').listen();
+box.add(src.scale, 'z', 0, 3).name('Length').listen();
+box.open();
+
+
 let clk = 0;
-let mx = 150;
+let mx = 5000;
 let p = 0;
 function animate() {
   //cubeGroup.rotation.y += 0.01;
   //octGroup.rotation.y += 0.01;
-  objGroup.rotation.y += 0.02;
-  if (p < pairs.length) {
-    let [pseudoSrcFace, dstFace] = pairs[p];
-    for (let i of 'abc') {
-      let [srcIdx, dstIdx] = [pseudoSrcFace[i], dstFace[i]];
-      let p = cubeOriGeo.vertices[srcIdx].clone().multiplyScalar(1-(clk+1)/mx).add(
-        oct.geometry.vertices[dstIdx].clone().multiplyScalar((clk+1)/mx)
-      );
-      p.x += ((clk+1) / mx) * (octGroup.position.x - cubeGroup.position.x);
-      cube.geometry.vertices[srcIdx].copy(p);
-      cube.geometry.verticesNeedUpdate = true;
-      cube.geometry.computeVertexNormals();
-      cubeWire.geometry = new WireframeGeometry(cube.geometry);
+  //objGroup.rotation.y += 0.02;
+  //if (p < pairs.length) {
+  if (pairs.length > 0) {
+    for (let t = 0; t < pairs.length; t++) {
+      let [pseudoSrcFace, dstFace] = pairs[t];
+      for (let i of 'abc') {
+        let [srcIdx, dstIdx] = [pseudoSrcFace[i], dstFace[i]];
+        let p = src.geometry.vertices[srcIdx].clone().multiplyScalar(1 - (clk+1)/mx).add(
+          dst.geometry.vertices[dstIdx].clone().multiplyScalar((clk+1)/mx)
+        );
+        src.geometry.vertices[srcIdx].copy(p);
+      }
     }
-  }
-  clk++;
-  if (clk == mx) {
-    clk = 0;
-    p++;
+    src.geometry.verticesNeedUpdate = true;
+    src.geometry.computeVertexNormals();
+    clk++;
   }
   renderer.render(scene, camera);
 }
-
 
 function loop() {
   stats.begin()
@@ -328,19 +284,6 @@ function loop() {
   stats.end()
 }
 loop();
-
-window.onresize = () => {
-  let w = window.innerWidth;
-  let h = window.innerHeight;
-	let canvas = document.querySelector('#canvas');
-	canvas.width = w;
-	canvas.height = h;
-	renderer.setSize(w, h);
-	camera.aspect = w / h;
-	camera.updateProjectionMatrix();
-};
-
-
   </script>
 
 </html>
