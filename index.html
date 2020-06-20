@@ -177,7 +177,6 @@ scene.add(octGroup);
 
 
 var options = {
-  approach: 'A',
   velx: 0,
   vely: 0,
   camera: {
@@ -231,14 +230,32 @@ splitIndependentVertices(geo);
 splitIndependentVertices(cube.geometry);
 
 // Determine morphing mesh pairs
+// Get all pairs
+let DistanceOfAllPairs = [];
+let srcFaces = cube.geometry.faces;
+let dstFaces = oct.geometry.faces;
+
+for (let i = 0; i < srcFaces.length; i++) {
+  for (let j = 0; j < dstFaces.length; j++) {
+    let srcFace = srcFaces[i], dstFace = dstFaces[j];
+    let [distance, pseudoSrcFace] = computeFaceDistance(cube.geometry, srcFace, oct.geometry, dstFace)
+    DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
+  }
+}
+//sort distance
+DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
+
+
 let pairs = [];
-let dstFaces = new Set(oct.geometry.faces);
-for (let srcFace of cube.geometry.faces) {
-  let tmpFaces = Array.from(dstFaces);
-  let [index, pseudoSrcFace] = getShortestDistanceFaceIndex(cube.geometry, srcFace, oct.geometry, tmpFaces);
-  let dstFace = tmpFaces[index];
-  dstFaces.delete(dstFace);
-  pairs.push([pseudoSrcFace, dstFace]);
+let usedRecordSrcIndex = new Set();
+let usedRecordDstIndex = new Set();
+for (let k = 0; k < DistanceOfAllPairs.length; k++){
+  let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
+  if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
+    continue;
+  pairs.push([pseudoSrcFace, dstFaces[j]]);
+  usedRecordSrcIndex.add(i);
+  usedRecordDstIndex.add(j);
 }
 
 let cubeOriGeo = cube.geometry.clone();
@@ -273,17 +290,11 @@ function animate() {
 
 function loop() {
   stats.begin()
-  if (options.approach == 'Nearest neighbor'){
-    animate();
-  };
+  animate();
 	requestAnimationFrame(loop);
   stats.end()
 }
 loop();
-
-
-gui.add(options, 'approach', ['Nearest neighbor', 'Edge ordering', 'Parameterization']);
-
 
 window.onresize = () => {
   let w = window.innerWidth;
