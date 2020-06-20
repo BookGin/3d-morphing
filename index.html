@@ -13,9 +13,13 @@
     </style>
   </head>
   <body>
-    <canvas id="canvas"></canvas>
+
+      <canvas id="canvas"></canvas>
+
   </body>
-  <script type="module">
+  <script type="text/javascript" src="./js/dat.gui.js"></script>
+
+    <script type="module">
 import Stats from "./js/stats.module.js?v=0.17.0";
 import { OrbitControls } from "./js/OrbitControls.js";
 import {
@@ -33,9 +37,13 @@ import {
 } from "./js/three.module.js?v=117";
 import { GLTFLoader } from './js/GLTFLoader.js';
 
+
+
 let stats = new Stats();
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
 document.body.appendChild(stats.dom);
+
+
 
 // https://threejs.org/docs/index.html#manual/en/introduction/Creating-a-scene
 let scene = new Scene();
@@ -52,6 +60,7 @@ let orbit = new OrbitControls(camera, renderer.domElement);
 let light = new PointLight(0xffffff, 1.5, 0);
 light.position.set(0, 1, 1);
 scene.add(light);
+
 
 
 // Util
@@ -122,12 +131,18 @@ let getShortestDistanceFaceIndex = (srcGeo, srcFace, dstGeo, dstFaces) => {
   return [minIndex, minPseudoFace];
 };
 
+
 // Cube
 let cubeGroup = new Group();
+
+var geometry = new BoxGeometry( 1, 1, 1 );
+var material = new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
 let cube = new Mesh(
-  new BoxGeometry(),
-  new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
+  geometry,
+  material
 );
+
+
 cubeGroup.add(cube);
 let cubeWire = new LineSegments(
   new WireframeGeometry(cube.geometry),
@@ -140,12 +155,15 @@ cubeGroup.add(cubeWire);
 cubeGroup.position.x = -1.5;
 scene.add(cubeGroup);
 
+
 // Oct
 let octGroup = new Group();
 let oct = new Mesh(
   new OctahedronGeometry(),
   new MeshPhongMaterial({color: 0x008080, emissive: 0x004040, transparent: true, opacity: 0.5})
 );
+
+
 octGroup.add(oct);
 let octWire = new LineSegments(
   new WireframeGeometry(oct.geometry),
@@ -157,6 +175,47 @@ let octWire = new LineSegments(
 octGroup.add(octWire);
 octGroup.position.x = +1.5;
 scene.add(octGroup);
+
+
+var options = {
+  velx: 0,
+  vely: 0,
+  camera: {
+    speed: 0.0001
+  },
+  stop: function() {
+    this.velx = 0;
+    this.vely = 0;
+  },
+  reset: function() {
+    this.velx = 0;
+    this.vely = 0;
+    camera.position.z = 3;
+    camera.position.x = 0;
+    camera.position.y = 0;
+    cubeGroup.scale.x = 1;
+    cubeGroup.scale.y = 1;
+    cubeGroup.scale.z = 1;
+    octGroup.radius = 1.;
+
+  }
+};
+
+
+var gui = new dat.GUI();
+
+var box = gui.addFolder('Cube');
+box.add(cubeGroup.scale, 'x', 0, 3).name('Width').listen();
+box.add(cubeGroup.scale, 'y', 0, 3).name('Height').listen();
+box.add(cubeGroup.scale, 'z', 0, 3).name('Length').listen();
+box.open();
+
+gui.add(options, 'stop');
+gui.add(options, 'reset');
+
+
+
+
 
 // Split oct faces
 let geo = oct.geometry;
@@ -172,14 +231,32 @@ splitIndependentVertices(geo);
 splitIndependentVertices(cube.geometry);
 
 // Determine morphing mesh pairs
+// Get all pairs
+let DistanceOfAllPairs = [];
+let srcFaces = cube.geometry.faces;
+let dstFaces = oct.geometry.faces;
+
+for (let i = 0; i < srcFaces.length; i++) {
+  for (let j = 0; j < dstFaces.length; j++) {
+    let srcFace = srcFaces[i], dstFace = dstFaces[j];
+    let [distance, pseudoSrcFace] = computeFaceDistance(cube.geometry, srcFace, oct.geometry, dstFace)
+    DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
+  }
+}
+//sort distance
+DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
+
+
 let pairs = [];
-let dstFaces = new Set(oct.geometry.faces);
-for (let srcFace of cube.geometry.faces) {
-  let tmpFaces = Array.from(dstFaces);
-  let [index, pseudoSrcFace] = getShortestDistanceFaceIndex(cube.geometry, srcFace, oct.geometry, tmpFaces);
-  let dstFace = tmpFaces[index];
-  dstFaces.delete(dstFace);
-  pairs.push([pseudoSrcFace, dstFace]);
+let usedRecordSrcIndex = new Set();
+let usedRecordDstIndex = new Set();
+for (let k = 0; k < DistanceOfAllPairs.length; k++){
+  let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
+  if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
+    continue;
+  pairs.push([pseudoSrcFace, dstFaces[j]]);
+  usedRecordSrcIndex.add(i);
+  usedRecordDstIndex.add(j);
 }
 
 let getMaxVerticeDistance = (geo) => {
@@ -243,6 +320,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+
 function loop() {
   stats.begin()
   animate();
@@ -261,5 +339,8 @@ window.onresize = () => {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 };
+
+
   </script>
+
 </html>
