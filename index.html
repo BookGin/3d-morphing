@@ -169,17 +169,17 @@ let srcOriginGeo = undefined;
 !async function() {
   let plane = (await loader.loadAsync('model/plane.obj')).children[0];
   plane.geometry = new Geometry().fromBufferGeometry(plane.geometry);
-  plane.material = new MeshPhongMaterial({color: 0x808000, emissive: 0x404000,side: DoubleSide });
+  plane.material = new MeshPhongMaterial({color: 0x808000, emissive: 0x404000,side: DoubleSide});
   normalizeScale(plane);
   
   let globe = (await loader.loadAsync('model/globe.obj')).children[0];
   globe.geometry = new Geometry().fromBufferGeometry(globe.geometry);
-  globe.material = new MeshPhongMaterial({color: 0x008080, emissive: 0x004040, side: DoubleSide });
+  globe.material = new MeshPhongMaterial({color: 0x008080, emissive: 0x004040, side: DoubleSide});
   normalizeScale(globe);
 
   let torus = new Mesh(
     new TorusGeometry(1, .3, .16, 6),
-    new MeshPhongMaterial({color: 0x808000, emissive: 0x404000})
+    new MeshPhongMaterial({color: 0x808000, emissive: 0x404000, side: DoubleSide})
   );
 
   let cube = new Mesh(
@@ -188,7 +188,6 @@ let srcOriginGeo = undefined;
   );
 
   src = globe;
-  srcOriginGeo = src.geometry.clone();
   dst = plane;
   scene.add(src);
 
@@ -199,52 +198,96 @@ let srcOriginGeo = undefined;
   box.open();
 
   // Split faces
+  let [lessGeo, moreGeo] = (src.geometry.faces.length < dst.geometry.faces.length) ? 
+        [src.geometry, dst.geometry] : [dst.geometry, src.geometry];
   let idx = 0;
-  while (src.geometry.faces.length < dst.geometry.faces.length) {
-    splitFace(src.geometry, src.geometry.faces[idx]);
+  while (lessGeo.faces.length < moreGeo.faces.length) {
+    splitFace(lessGeo, lessGeo.faces[idx]);
     idx++;
   }
   // Split independent vertices
   splitIndependentVertices(src.geometry);
   splitIndependentVertices(dst.geometry);
+  srcOriginGeo = src.geometry.clone();
   
-  console.log('edge ordering');
   // edge ordering
-  let DistanceOfAllPairs = [];
-  let srcFaces = src.geometry.faces, dstFaces = dst.geometry.faces;
-  for (let i = 0; i < srcFaces.length; i++) {
-    for (let j = 0; j < dstFaces.length; j++) {
-      let srcFace = srcFaces[i], dstFace = dstFaces[j];
-      let [distance, pseudoSrcFace] = computeFaceDistance(src.geometry, srcFace, dst.geometry, dstFace)
-      DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
+  if (location.hash === '#edgeOrdering') {
+    let DistanceOfAllPairs = [];
+    let srcFaces = src.geometry.faces, dstFaces = dst.geometry.faces;
+    for (let i = 0; i < srcFaces.length; i++) {
+      for (let j = 0; j < dstFaces.length; j++) {
+        let srcFace = srcFaces[i], dstFace = dstFaces[j];
+        let [distance, pseudoSrcFace] = computeFaceDistance(src.geometry, srcFace, dst.geometry, dstFace)
+        DistanceOfAllPairs.push([distance, pseudoSrcFace, i, j]);
+      }
+    }
+    DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
+
+    let usedRecordSrcIndex = new Set(), usedRecordDstIndex = new Set();
+    for (let k = 0; k < DistanceOfAllPairs.length; k++){
+      let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
+      if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
+        continue;
+      pairs.push([pseudoSrcFace, dstFaces[j]]);
+      usedRecordSrcIndex.add(i);
+      usedRecordDstIndex.add(j);
+    }
+  } else {
+    let srcFaces = src.geometry.faces, dstFaces = dst.geometry.faces;
+    let usedRecordDstIndex = new Set();
+    for (let i = 0; i < srcFaces.length; i++) {
+      let minDistance = undefined, minPseudoSrcFace, minJ;
+      for (let j = 0; j < dstFaces.length; j++) {
+        if (usedRecordDstIndex.has(j))
+          continue;
+        let srcFace = srcFaces[i], dstFace = dstFaces[j];
+        let [distance, pseudoSrcFace] = computeFaceDistance(src.geometry, srcFace, dst.geometry, dstFace);
+        if (minDistance === undefined || distance < minDistance) {
+          [minDistance, minPseudoSrcFace, minJ] = [distance, pseudoSrcFace, j];
+        }
+      }
+      pairs.push([minPseudoSrcFace, dstFaces[minJ]]);
+      usedRecordDstIndex.add(minJ);
     }
   }
-  DistanceOfAllPairs.sort((x, y) => (x[0] > y[0]) ? 1 : ((x[0] == y[0]) ? 0 : -1))
-
-  let usedRecordSrcIndex = new Set(), usedRecordDstIndex = new Set();
-  for (let k = 0; k < DistanceOfAllPairs.length; k++){
-    let [distance, pseudoSrcFace, i, j] = DistanceOfAllPairs[k];
-    if (usedRecordSrcIndex.has(i) || usedRecordDstIndex.has(j))
-      continue;
-    pairs.push([pseudoSrcFace, dstFaces[j]]);
-    usedRecordSrcIndex.add(i);
-    usedRecordDstIndex.add(j);
-  }
-  console.log('edge ordering done',  pairs.length);
 }();
 
 
 let clk = 0;
 let mx = 100;
+let isStop = false;
 var options = {
   reset: () => {
     clk = 0;
+    mx = options.frame;
+  },
+  play: () => {
+    if (isStop) {
+      mx = options.frame;
+    }
+    isStop = !isStop;
+  },
+  frame: 100,
+  nearestNeighbor: () => {
+    location.hash = "#nearestNeighbor"
+    location.reload();
+  },
+  edgeOrdering: () => {
+    location.hash = "#edgeOrdering"
+    location.reload();
   }
 };
-gui.add(options, 'reset');
+gui.add(options, 'frame', 1, 500).name('Frame').listen();
+gui.add(options, 'play').name('Play');
+gui.add(options, 'reset').name('Reset');
+let algoBox = gui.addFolder('Mesh Matching: ' + encodeURI(location.hash.slice(1)));
+
+algoBox.add(options, 'nearestNeighbor').name('Nearest Neighbor')
+algoBox.add(options, 'edgeOrdering').name('Edge Ordering')
+algoBox.open();
 
 function animate() {
-  if (clk < mx) {
+  if (clk < mx && !isStop) {
     if (pairs.length > 0) {
       for (let t = 0; t < pairs.length; t++) {
         let [pseudoSrcFace, dstFace] = pairs[t];
